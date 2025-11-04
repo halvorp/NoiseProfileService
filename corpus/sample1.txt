@@ -1,0 +1,5 @@
+This is a sample text file.
+It contains some noise like _______ and ******.
+Let's see if the sanitizer can handle it.
+\n\n\n\n
+This is the end of the file.

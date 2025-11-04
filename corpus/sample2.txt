@@ -1,0 +1,6 @@
+Here is another example.
+This one has different noise patterns, like ---- and ======.
+Also, it has multiple newlines.
+\n \n \n \n
+The quick brown fox jumps over the lazy dog.
+The end.
