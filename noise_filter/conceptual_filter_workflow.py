@@ -28,15 +28,19 @@ def sanitize_text(request: SanitizationRequest):
     if noise_model is None:
         raise HTTPException(status_code=500, detail="Noise model not loaded.")
 
-    # 1. Un-escape HTML entities (e.g., &lt; -> <)
+    # [ LAYER 1: DETERMINISTIC MARKUP STRIPPING ]
+    # Un-escape entities like &lt; to <
     text_unscaped = html.unescape(request.text)
 
-    # 2. Strip all resulting <...> tags.
+    # Strip all <...> tags.
     text_no_markup = re.sub(r'<[^>]+>', ' ', text_unscaped)
 
-    # 3. Run the Aho-Corasick automaton on the markup-free text
+    # [ LAYER 2: STATISTICAL ARTIFACT FILTERING ]
+    # Now, run the Aho-Corasick automaton (with the *correct* profile)
+    # on the markup-free text.
     clean_parts = []
     last_end = 0
+    # Note: We iterate on 'text_no_markup', not 'request.text'
     for end_index, found_value in noise_model.iter(text_no_markup):
         start_index = end_index - len(found_value) + 1
         clean_parts.append(text_no_markup[last_end:start_index])
@@ -46,7 +50,7 @@ def sanitize_text(request: SanitizationRequest):
     clean_parts.append(text_no_markup[last_end:])
     almost_clean_text = "".join(clean_parts)
 
-    # 4. Collapse multiple spaces
+    # [ LAYER 3: WHITESPACE NORMALIZATION ]
     sanitized_text = re.sub(r' +', ' ', almost_clean_text)
 
     return SanitizationResponse(sanitized_text=sanitized_text.strip())
