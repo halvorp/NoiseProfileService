@@ -26,10 +26,9 @@ class TestSanitizer(unittest.TestCase):
 
     def test_sanitization_workflow(self):
         with TestClient(app) as client:
-            # Test case 1: Basic sanitization with patterns from the definitive profile
+            # Test case 1: Basic sanitization with standalone noise
             response = client.post("/sanitize", json={"text": "Hello _______ world ******"})
             self.assertEqual(response.status_code, 200)
-            # The exact output depends on the generated profile, but it should be clean
             self.assertNotIn("_______", response.json()["sanitized_text"])
             self.assertNotIn("******", response.json()["sanitized_text"])
 
@@ -42,6 +41,15 @@ class TestSanitizer(unittest.TestCase):
             response = client.post("/sanitize", json={"text": "Hello &lt;b&gt;world&lt;/b&gt; ******"})
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json()["sanitized_text"], "Hello world")
+
+            # Test case 4: Token-aware filtering (preserve embedded, remove standalone)
+            # Use '***' as the noise pattern, which is present in the generated profile.
+            response = client.post("/sanitize", json={"text": "This is a word***with***embedded***noise and this is standalone *** noise"})
+            self.assertEqual(response.status_code, 200)
+            sanitized_text = response.json()["sanitized_text"]
+            self.assertIn("word***with***embedded***noise", sanitized_text)
+            self.assertNotIn("standalone *** noise", sanitized_text)
+            self.assertIn("standalone noise", sanitized_text)
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,9 +1,10 @@
-import re
-import html
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
 from .conceptual_noise_model_loader import load_noise_model
+from pipeline.conceptual_layer_1_markup import strip_markup
+from pipeline.conceptual_layer_2_artifacts import filter_standalone_artifacts
+from pipeline.conceptual_layer_3_whitespace import normalize_whitespace
 
 app = FastAPI()
 noise_model = None
@@ -24,33 +25,17 @@ class SanitizationResponse(BaseModel):
 
 @app.post("/sanitize", response_model=SanitizationResponse)
 def sanitize_text(request: SanitizationRequest):
-    """Sanitizes a text by first stripping markup, then removing noise patterns."""
+    """Orchestrates the sanitization pipeline."""
     if noise_model is None:
         raise HTTPException(status_code=500, detail="Noise model not loaded.")
 
-    # [ LAYER 1: DETERMINISTIC MARKUP STRIPPING ]
-    # Un-escape entities like &lt; to <
-    text_unscaped = html.unescape(request.text)
+    # Layer 1: Deterministic Markup Stripping
+    text_no_markup = strip_markup(request.text)
 
-    # Strip all <...> tags.
-    text_no_markup = re.sub(r'<[^>]+>', ' ', text_unscaped)
+    # Layer 2: Token-Aware Artifact Filtering
+    text_no_artifacts = filter_standalone_artifacts(text_no_markup, noise_model)
 
-    # [ LAYER 2: STATISTICAL ARTIFACT FILTERING ]
-    # Now, run the Aho-Corasick automaton (with the *correct* profile)
-    # on the markup-free text.
-    clean_parts = []
-    last_end = 0
-    # Note: We iterate on 'text_no_markup', not 'request.text'
-    for end_index, found_value in noise_model.iter(text_no_markup):
-        start_index = end_index - len(found_value) + 1
-        clean_parts.append(text_no_markup[last_end:start_index])
-        clean_parts.append(" ")  # Replacement token
-        last_end = end_index + 1
+    # Layer 3: Whitespace Normalization
+    sanitized_text = normalize_whitespace(text_no_artifacts)
 
-    clean_parts.append(text_no_markup[last_end:])
-    almost_clean_text = "".join(clean_parts)
-
-    # [ LAYER 3: WHITESPACE NORMALIZATION ]
-    sanitized_text = re.sub(r' +', ' ', almost_clean_text)
-
-    return SanitizationResponse(sanitized_text=sanitized_text.strip())
+    return SanitizationResponse(sanitized_text=sanitized_text)
