@@ -1,4 +1,5 @@
 import re
+import html
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
@@ -23,22 +24,29 @@ class SanitizationResponse(BaseModel):
 
 @app.post("/sanitize", response_model=SanitizationResponse)
 def sanitize_text(request: SanitizationRequest):
-    """Sanitizes a text by removing noise patterns."""
+    """Sanitizes a text by first stripping markup, then removing noise patterns."""
     if noise_model is None:
         raise HTTPException(status_code=500, detail="Noise model not loaded.")
 
+    # 1. Un-escape HTML entities (e.g., &lt; -> <)
+    text_unscaped = html.unescape(request.text)
+
+    # 2. Strip all resulting <...> tags.
+    text_no_markup = re.sub(r'<[^>]+>', ' ', text_unscaped)
+
+    # 3. Run the Aho-Corasick automaton on the markup-free text
     clean_parts = []
     last_end = 0
-    for end_index, found_value in noise_model.iter(request.text):
+    for end_index, found_value in noise_model.iter(text_no_markup):
         start_index = end_index - len(found_value) + 1
-        clean_parts.append(request.text[last_end:start_index])
+        clean_parts.append(text_no_markup[last_end:start_index])
         clean_parts.append(" ")  # Replacement token
         last_end = end_index + 1
 
-    clean_parts.append(request.text[last_end:])
+    clean_parts.append(text_no_markup[last_end:])
     almost_clean_text = "".join(clean_parts)
 
-    # Collapse multiple spaces into a single space, without affecting newlines
+    # 4. Collapse multiple spaces
     sanitized_text = re.sub(r' +', ' ', almost_clean_text)
 
-    return SanitizationResponse(sanitized_text=sanitized_text)
+    return SanitizationResponse(sanitized_text=sanitized_text.strip())

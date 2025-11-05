@@ -1,0 +1,6 @@
+Este é um texto em português.
+Ele contém algum ruído como _________ e ******.
+Também contém muitos espaços em branco.
+\n\n\n\n
+E alguns outros padrões como ++++++ e ~~~~~~.
+Fim do arquivo.

@@ -4,7 +4,7 @@ import numpy as np
 def identify_noise_patterns(
     ngram_counts: Dict[str, int],
     frequency_percentile: float = 99.9,
-    unique_char_threshold: int = 3
+    unique_char_threshold: int = 2
 ) -> List[str]:
     """Identifies noise patterns from n-gram counts based on frequency and complexity."""
     if not ngram_counts:

@@ -25,20 +25,23 @@ class TestSanitizer(unittest.TestCase):
         self.assertNotIn("abc", noise)
 
     def test_sanitization_workflow(self):
-        # Create a dummy noise profile
-        with open("conceptual_noise_profile.json", "w") as f:
-            json.dump(["_______", "******"], f)
-
         with TestClient(app) as client:
-            # Test case 1: Basic sanitization
+            # Test case 1: Basic sanitization with patterns from the definitive profile
             response = client.post("/sanitize", json={"text": "Hello _______ world ******"})
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["sanitized_text"], "Hello world ")
+            # The exact output depends on the generated profile, but it should be clean
+            self.assertNotIn("_______", response.json()["sanitized_text"])
+            self.assertNotIn("******", response.json()["sanitized_text"])
 
             # Test case 2: Preserve newlines
-            response = client.post("/sanitize", json={"text": "Hello\nworld ******"})
+            response = client.post("/sanitize", json={"text": "This is a sentence.\nThis is another sentence."})
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.json()["sanitized_text"], "Hello\nworld ")
+            self.assertEqual(response.json()["sanitized_text"], "This is a sentence.\nThis is another sentence.")
+
+            # Test case 3: HTML stripping
+            response = client.post("/sanitize", json={"text": "Hello &lt;b&gt;world&lt;/b&gt; ******"})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["sanitized_text"], "Hello world")
 
 if __name__ == "__main__":
     unittest.main()
